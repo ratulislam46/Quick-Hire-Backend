@@ -23,20 +23,9 @@ async function run() {
     try {
         await client.connect();
 
-        const jobCollection = client.db("quickHireDB").collection("jobs");
         const userCollection = client.db("quickHireDB").collection("users");
+        const jobCollection = client.db("quickHireDB").collection("jobs");
 
-        app.post('/jobs', async (req, res) => {
-            const newJob = req.body;
-            const result = await jobCollection.insertOne(newJob);
-            res.send(result);
-        });
-
-        app.get('/jobs', async (req, res) => {
-            const cursor = jobCollection.find();
-            const result = await cursor.toArray();
-            res.send(result);
-        });
 
         app.post('/register', async (req, res) => {
             const user = req.body;
@@ -54,12 +43,27 @@ async function run() {
             const filter = { email: user.email };
             const updateDoc = {
                 $set: {
-                    lastLoggedAt: user.lastLoggedAt 
+                    lastLoggedAt: user.lastLoggedAt
                 }
             };
             const result = await userCollection.updateOne(filter, updateDoc);
             res.send(result);
         });
+
+        //  Get all jobs with Filter (Admin & Users)
+        app.get('/jobs', async (req, res) => {
+            const { title, category } = req.query;
+            let query = {};
+            if (title) {
+                query.title = { $regex: title, $options: 'i' };
+            }
+            if (category && category !== 'All') {
+                query.category = category;
+            }
+            const result = await jobCollection.find(query).sort({ created_at: -1 }).toArray();
+            res.send(result);
+        });
+
 
         console.log("Successfully connected to MongoDB!");
     } finally {
