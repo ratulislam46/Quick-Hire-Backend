@@ -64,6 +64,12 @@ async function run() {
             res.send(result);
         });
 
+        //  Add New Job
+        app.post('/jobs', async (req, res) => {
+            const newJob = req.body;
+            const result = await jobCollection.insertOne(newJob);
+            res.send(result);
+        });
 
         console.log("Successfully connected to MongoDB!");
     } finally {
