@@ -79,6 +79,33 @@ async function run() {
             res.send(result);
         });
 
+        app.get('/users/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            res.send(user);
+        });
+
+        // ১. নির্দিষ্ট ইমেইল দিয়ে ইউজারের তথ্য খুঁজে বের করা
+        app.get('/users/email/:email', async (req, res) => {
+            try {
+                const email = req.params.email; // URL থেকে ইমেইল নেওয়া হচ্ছে
+                const query = { email: email };
+
+                // ডাটাবেস থেকে ইউজার খুঁজে বের করা
+                const result = await userCollection.findOne(query);
+
+                if (!result) {
+                    return res.status(404).send({ message: "User not found" });
+                }
+
+                res.send(result);
+            } catch (error) {
+                console.error("Error fetching user:", error);
+                res.status(500).send({ message: "Internal Server Error" });
+            }
+        });
+
         console.log("Successfully connected to MongoDB!");
     } finally {
     }
