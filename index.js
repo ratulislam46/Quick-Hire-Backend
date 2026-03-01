@@ -1,4 +1,4 @@
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb'); // ফিক্সড: ObjectId যোগ করা হয়েছে
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
@@ -21,11 +21,10 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        await client.connect();
 
         const userCollection = client.db("quickHireDB").collection("users");
         const jobCollection = client.db("quickHireDB").collection("jobs");
-
+        const applicationCollection = client.db("quickHireDB").collection("applications");
 
         app.post('/register', async (req, res) => {
             const user = req.body;
@@ -41,37 +40,53 @@ async function run() {
         app.patch('/login', async (req, res) => {
             const user = req.body;
             const filter = { email: user.email };
-            const updateDoc = {
-                $set: {
-                    lastLoggedAt: user.lastLoggedAt
-                }
-            };
+            const updateDoc = { $set: { lastLoggedAt: user.lastLoggedAt } };
             const result = await userCollection.updateOne(filter, updateDoc);
             res.send(result);
         });
 
-        //  Get all jobs with Filter (Admin & Users)
+        app.get('/users/email/:email', async (req, res) => {
+            try {
+                const email = req.params.email;
+                const result = await userCollection.findOne({ email: email });
+                if (!result) return res.status(404).send({ message: "User not found" });
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ message: "Error" });
+            }
+        });
+
         app.get('/jobs', async (req, res) => {
             const { title, category } = req.query;
             let query = {};
-            if (title) {
-                query.title = { $regex: title, $options: 'i' };
-            }
-            if (category && category !== 'All') {
-                query.category = category;
-            }
+            if (title) query.title = { $regex: title, $options: 'i' };
+            if (category && category !== 'All') query.category = category;
+
             const result = await jobCollection.find(query).sort({ created_at: -1 }).toArray();
             res.send(result);
         });
 
-        //  Add New Job
+        app.get('/jobs/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+                if (!ObjectId.isValid(id)) {
+                    return res.status(400).send({ message: "Invalid ID format" });
+                }
+                const query = { _id: new ObjectId(id) };
+                const result = await jobCollection.findOne(query);
+                if (!result) return res.status(404).send({ message: "Job not found" });
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ message: "Server error", error: error.message });
+            }
+        });
+
         app.post('/jobs', async (req, res) => {
             const newJob = req.body;
             const result = await jobCollection.insertOne(newJob);
             res.send(result);
         });
 
-        //  Delete Job
         app.delete('/jobs/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
@@ -79,30 +94,24 @@ async function run() {
             res.send(result);
         });
 
-        app.get('/users/:email', async (req, res) => {
-            const email = req.params.email;
-            const query = { email: email };
-            const user = await userCollection.findOne(query);
-            res.send(user);
-        });
-
-        // ১. নির্দিষ্ট ইমেইল দিয়ে ইউজারের তথ্য খুঁজে বের করা
-        app.get('/users/email/:email', async (req, res) => {
+        app.post('/job-applications', async (req, res) => {
             try {
-                const email = req.params.email; // URL থেকে ইমেইল নেওয়া হচ্ছে
-                const query = { email: email };
+                const application = req.body;
 
-                // ডাটাবেস থেকে ইউজার খুঁজে বের করা
-                const result = await userCollection.findOne(query);
+                const alreadyApplied = await applicationCollection.findOne({
+                    applicant_email: application.applicant_email,
+                    job_id: application.job_id
+                });
 
-                if (!result) {
-                    return res.status(404).send({ message: "User not found" });
+                if (alreadyApplied) {
+                    return res.status(400).send({ message: "You have already applied for this job." });
                 }
 
+                const result = await applicationCollection.insertOne(application);
                 res.send(result);
             } catch (error) {
-                console.error("Error fetching user:", error);
-                res.status(500).send({ message: "Internal Server Error" });
+                console.error(error);
+                res.status(500).send({ message: "Failed to submit application" });
             }
         });
 
