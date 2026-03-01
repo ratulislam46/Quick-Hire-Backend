@@ -115,7 +115,6 @@ async function run() {
             }
         });
 
-        console.log("Successfully connected to MongoDB!");
     } finally {
     }
 }
